@@ -1,0 +1,699 @@
+diff --git a/audio/simpleaudiosample/Source/Filters/micarraywavtable.h b/audio/simpleaudiosample/Source/Filters/micarraywavtable.h
+index 5365603..8019563 100644
+--- a/audio/simpleaudiosample/Source/Filters/micarraywavtable.h
++++ b/audio/simpleaudiosample/Source/Filters/micarraywavtable.h
+@@ -20,7 +20,7 @@ Abstract:-
+ //
+ #define MICARRAY_RAW_CHANNELS                   2       // Channels for raw mode
+ #define MICARRAY_DEVICE_MAX_CHANNELS            2       // Max channels overall
+-#define MICARRAY_32_BITS_PER_SAMPLE_PCM         32      // 32 Bits Per Sample
++#define MICARRAY_16_BITS_PER_SAMPLE_PCM         16      // 16 Bits Per Sample
+ #define MICARRAY_RAW_SAMPLE_RATE                48000   // Raw sample rate
+ 
+ //
+@@ -32,7 +32,7 @@ Abstract:-
+ static
+ KSDATAFORMAT_WAVEFORMATEXTENSIBLE MicArrayPinSupportedDeviceFormats[] =
+ {
+-    // 48 KHz 32-bit 2 channels
++    // 48 KHz 16-bit 2 channels
+     {
+         {
+             sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE),
+@@ -48,12 +48,12 @@ KSDATAFORMAT_WAVEFORMATEXTENSIBLE MicArrayPinSupportedDeviceFormats[] =
+                 WAVE_FORMAT_EXTENSIBLE,
+                 2,
+                 48000,
+-                384000,
+-                8,
+-                32,
++                192000,
++                4,
++                16,
+                 sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX)
+             },
+-            32,
++            16,
+             KSAUDIO_SPEAKER_STEREO,
+             STATICGUIDOF(KSDATAFORMAT_SUBTYPE_PCM)
+         }
+@@ -66,6 +66,14 @@ KSDATAFORMAT_WAVEFORMATEXTENSIBLE MicArrayPinSupportedDeviceFormats[] =
+ static
+ MODE_AND_DEFAULT_FORMAT MicArrayPinSupportedDeviceModes[] =
+ {
++    {
++        STATIC_AUDIO_SIGNALPROCESSINGMODE_DEFAULT,
++        &MicArrayPinSupportedDeviceFormats[0].DataFormat
++    },
++    {
++        STATIC_AUDIO_SIGNALPROCESSINGMODE_COMMUNICATIONS,
++        &MicArrayPinSupportedDeviceFormats[0].DataFormat
++    },
+     {
+         STATIC_AUDIO_SIGNALPROCESSINGMODE_RAW,
+         &MicArrayPinSupportedDeviceFormats[0].DataFormat
+@@ -114,8 +122,8 @@ KSDATARANGE_AUDIO MicArrayPinDataRangesRawStream[] =
+             STATICGUIDOF(KSDATAFORMAT_SPECIFIER_WAVEFORMATEX)
+         },
+         MICARRAY_RAW_CHANNELS,
+-        MICARRAY_32_BITS_PER_SAMPLE_PCM,
+-        MICARRAY_32_BITS_PER_SAMPLE_PCM,
++        MICARRAY_16_BITS_PER_SAMPLE_PCM,
++        MICARRAY_16_BITS_PER_SAMPLE_PCM,
+         MICARRAY_RAW_SAMPLE_RATE,
+         MICARRAY_RAW_SAMPLE_RATE
+     },
+diff --git a/audio/simpleaudiosample/Source/Inc/common.h b/audio/simpleaudiosample/Source/Inc/common.h
+index 2d2db7d..5bbdea8 100644
+--- a/audio/simpleaudiosample/Source/Inc/common.h
++++ b/audio/simpleaudiosample/Source/Inc/common.h
+@@ -14,6 +14,8 @@ Abstract:
+ #ifndef _SIMPLEAUDIOSAMPLE_COMMON_H_
+ #define _SIMPLEAUDIOSAMPLE_COMMON_H_
+ 
++#include "voice-bridge.h"
++
+ #define HNSTIME_PER_MILLISECOND 10000
+ 
+ //=============================================================================
+@@ -247,6 +249,8 @@ DEFINE_GUID(IID_IAdapterCommon,
+ //
+ DECLARE_INTERFACE_(IAdapterCommon, IUnknown)
+ {
++    STDMETHOD_(VoiceBridge*, GetVoiceBridge)(THIS) PURE;
++
+     STDMETHOD_(NTSTATUS,        Init) 
+     ( 
+         THIS_
+diff --git a/audio/simpleaudiosample/Source/Main/Main.vcxproj b/audio/simpleaudiosample/Source/Main/Main.vcxproj
+index b569da4..4b478a1 100644
+--- a/audio/simpleaudiosample/Source/Main/Main.vcxproj
++++ b/audio/simpleaudiosample/Source/Main/Main.vcxproj
+@@ -1,4 +1,4 @@
+-﻿<?xml version="1.0" encoding="utf-8"?>
++<?xml version="1.0" encoding="utf-8"?>
+ <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+   <ItemGroup Label="ProjectConfigurations">
+     <ProjectConfiguration Include="Debug|ARM64">
+@@ -179,16 +179,16 @@
+     </DriverSign>
+   </ItemDefinitionGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+-    <TargetName>SimpleAudioSample</TargetName>
++    <TargetName>MPKDeckVoice</TargetName>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+-    <TargetName>SimpleAudioSample</TargetName>
++    <TargetName>MPKDeckVoice</TargetName>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+-    <TargetName>SimpleAudioSample</TargetName>
++    <TargetName>MPKDeckVoice</TargetName>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+-    <TargetName>SimpleAudioSample</TargetName>
++    <TargetName>MPKDeckVoice</TargetName>
+   </PropertyGroup>
+   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+     <Link>
+diff --git a/audio/simpleaudiosample/Source/Main/SimpleAudioSample.inx b/audio/simpleaudiosample/Source/Main/SimpleAudioSample.inx
+index db2b62c..d5825c8 100644
+--- a/audio/simpleaudiosample/Source/Main/SimpleAudioSample.inx
++++ b/audio/simpleaudiosample/Source/Main/SimpleAudioSample.inx
+@@ -3,30 +3,21 @@ Signature   = "$Windows NT$"
+ Class       = MEDIA
+ Provider    = %ProviderName%
+ ClassGUID   = {4d36e96c-e325-11ce-bfc1-08002be10318}
+-DriverVer   = 02/22/2016, 1.0.0.1
+-CatalogFile = SimpleAudioSample.cat
++DriverVer   = 11/05/2026, 0.2.0.0
++CatalogFile = MPKDeckVoice.cat
+ PnpLockDown = 1
+ 
+ [SourceDisksNames]
+ 222="SIMPLEAUDIOSAMPLE Driver Disk","",222
+ 
+ [SourceDisksFiles]
+-simpleaudiosample.sys=222
+-
+-[SignatureAttributes]
+-simpleaudiosample.sys=SignatureAttributes.DRM
+-
+-[SignatureAttributes.DRM]
+-DRMLevel=1300
+-
+-[SignatureAttributes.PETrust]
+-PETrust=true
++mpkdeckvoice.sys=222
+ 
+ [Manufacturer]
+-%MfgName%=SIMPLEAUDIOSAMPLE,NT$ARCH$.10.0...22000
++%MfgName%=SIMPLEAUDIOSAMPLE,NT$ARCH$.10.0...19041
+ 
+-[SIMPLEAUDIOSAMPLE.NT$ARCH$.10.0...22000]
+-%SIMPLEAUDIOSAMPLE_SA.DeviceDesc%=SIMPLEAUDIOSAMPLE_SA, ROOT\SimpleAudioSample
++[SIMPLEAUDIOSAMPLE.NT$ARCH$.10.0...19041]
++%SIMPLEAUDIOSAMPLE_SA.DeviceDesc%=SIMPLEAUDIOSAMPLE_SA, ROOT\MPKDeckVoice
+ 
+ [DestinationDirs]
+ SIMPLEAUDIOSAMPLE_SA.CopyList=13 ; 13=Package's DriverStore directory
+@@ -35,11 +26,11 @@ SIMPLEAUDIOSAMPLE_SA.CopyList=13 ; 13=Package's DriverStore directory
+ ; SIMPLEAUDIOSAMPLE_SA
+ ;======================================================
+ [SIMPLEAUDIOSAMPLE_SA.CopyList]
+-simpleaudiosample.sys
++mpkdeckvoice.sys
+ 
+ [SIMPLEAUDIOSAMPLE_SA.AddReg]
+ HKR,,AssociatedFilters,,"wdmaud,swmidi,redbook"
+-HKR,,Driver,,simpleaudiosample.sys
++HKR,,Driver,,mpkdeckvoice.sys
+ 
+ ;
+ ; For demo only, please review these power management settings for your architecture. 
+@@ -75,6 +66,7 @@ HKR,,CLSID,,%Proxy.CLSID%
+ HKR,,FriendlyName,,%SIMPLEAUDIOSAMPLE.TopologyMicArray1.szPname%
+ 
+ HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
++HKR,EP\0,%PKEY_AudioDevice_NeverSetAsDefaultEndpoint%,0x00010001,0x00000307
+ 
+ ; The following lines opt-in to pull mode.
+ HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+@@ -97,6 +89,7 @@ HKR,,CLSID,,%Proxy.CLSID%
+ HKR,,FriendlyName,,%SIMPLEAUDIOSAMPLE.TopologySpeaker.szPname%
+ 
+ HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
++HKR,EP\0,%PKEY_AudioDevice_NeverSetAsDefaultEndpoint%,0x00010001,0x00000307
+ 
+ ; The following lines opt-in to pull mode.
+ HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+@@ -130,14 +123,14 @@ AddInterface=%KSCATEGORY_AUDIO%,    %KSNAME_TopologyMicArray1%, SIMPLEAUDIOSAMPL
+ AddInterface=%KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyMicArray1%, SIMPLEAUDIOSAMPLE.I.TopologyMicArray1
+ 
+ [SIMPLEAUDIOSAMPLE_SA.NT.Services]
+-AddService=SimpleAudioSample,0x00000002,SimpleAudioSample_Service_Inst
++AddService=MPKDeckVoice,0x00000002,SimpleAudioSample_Service_Inst
+ 
+ [SimpleAudioSample_Service_Inst]
+ DisplayName=%SimpleAudioSample.SvcDesc%
+ ServiceType=1
+ StartType=3
+ ErrorControl=1
+-ServiceBinary=%13%\simpleaudiosample.sys
++ServiceBinary=%13%\mpkdeckvoice.sys
+ 
+ [SIMPLEAUDIOSAMPLE_SA.NT.HW]
+ AddReg = AUDIOHW.AddReg
+@@ -153,7 +146,7 @@ HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GRGWGX;;;BA)(A;;GRGWGX;;;WD)(A;;GRGWGX;;;RC)"
+ ; WDF
+ ;======================================================
+ [SIMPLEAUDIOSAMPLE_SA.NT.Wdf]
+-KmdfService = SimpleAudioSample, SIMPLEAUDIOSAMPLE_SA_WdfSect
++KmdfService = MPKDeckVoice, SIMPLEAUDIOSAMPLE_SA_WdfSect
+ [SIMPLEAUDIOSAMPLE_SA_WdfSect]
+ KmdfLibraryVersion = $KMDFVERSION$
+ 
+@@ -179,24 +172,25 @@ KSCATEGORY_TOPOLOGY = "{DDA54A40-1E4C-11D1-A050-405705C10000}"
+ 
+ KSNODETYPE_ANY   = "{00000000-0000-0000-0000-000000000000}"
+ 
++PKEY_AudioDevice_NeverSetAsDefaultEndpoint   = "{F3E80BEF-1723-4FF2-BCC4-7F83DC5E46D4},3"
+ PKEY_AudioEndpoint_Association               = "{1DA5D803-D492-4EDD-8C23-E0C0FFEE7F0E},2"
+ PKEY_AudioEndpoint_Supports_EventDriven_Mode = "{1DA5D803-D492-4EDD-8C23-E0C0FFEE7F0E},7"
+ 
+ ;Localizable
+ 
+-ProviderName = "TODO-Set-Provider"
+-MfgName      = "TODO-Set-Manufacturer"
+-MsCopyRight  = "TODO-Set-Copyright"
++ProviderName = "MPK Deck"
++MfgName      = "MPK Deck"
++MsCopyRight  = "Microsoft Corporation and MPK Deck contributors"
+ 
+-SIMPLEAUDIOSAMPLE_SA.DeviceDesc="Virtual Audio Device (WDM) - Simple Audio Sample"
+-SimpleAudioSample.SvcDesc="Virtual Audio Device (WDM) - Simple Audio Sample Driver"
++SIMPLEAUDIOSAMPLE_SA.DeviceDesc="MPK Deck Virtual Audio"
++SimpleAudioSample.SvcDesc="MPK Deck Virtual Audio Driver"
+ 
+ ;; friendly names
+-SIMPLEAUDIOSAMPLE.WaveSpeaker.szPname="Simple Audio Sample Wave Speaker"
+-SIMPLEAUDIOSAMPLE.TopologySpeaker.szPname="Simple Audio Sample Topology Speaker"
++SIMPLEAUDIOSAMPLE.WaveSpeaker.szPname="MPK Deck Voice Send"
++SIMPLEAUDIOSAMPLE.TopologySpeaker.szPname="MPK Deck Virtual Audio"
+ 
+-SIMPLEAUDIOSAMPLE.WaveMicArray1.szPname="Simple Audio Sample Wave Microphone Array - Front"
+-SIMPLEAUDIOSAMPLE.TopologyMicArray1.szPname="Simple Audio Sample Topology Microphone Array - Front"
++SIMPLEAUDIOSAMPLE.WaveMicArray1.szPname="MPK Deck Microphone"
++SIMPLEAUDIOSAMPLE.TopologyMicArray1.szPname="MPK Deck Virtual Audio"
+ 
+-MicArray1CustomName= "Internal Microphone Array - Front"
++MicArray1CustomName= "MPK Deck Microphone"
+ 
+diff --git a/audio/simpleaudiosample/Source/Main/SimpleAudioSample.rc b/audio/simpleaudiosample/Source/Main/SimpleAudioSample.rc
+index 7fbb489..6c2fc47 100644
+--- a/audio/simpleaudiosample/Source/Main/SimpleAudioSample.rc
++++ b/audio/simpleaudiosample/Source/Main/SimpleAudioSample.rc
+@@ -14,11 +14,24 @@ Abstract:
+ 
+ #include <ntverp.h>
+ 
++#undef VER_COMPANYNAME_STR
++#undef VER_PRODUCTNAME_STR
++#undef VER_PRODUCTVERSION
++#undef VER_PRODUCTVERSION_STR
++#undef VER_FILEVERSION
++#undef VER_FILEVERSION_STR
++#define VER_COMPANYNAME_STR        "MPK Deck"
++#define VER_PRODUCTNAME_STR        "MPK Deck Virtual Audio"
++#define VER_PRODUCTVERSION         0,2,0,0
++#define VER_PRODUCTVERSION_STR     "0.2.0.0"
++#define VER_FILEVERSION            VER_PRODUCTVERSION
++#define VER_FILEVERSION_STR        VER_PRODUCTVERSION_STR
++
+ #define VER_FILETYPE                VFT_DRV
+ #define VER_FILESUBTYPE             VFT2_DRV_SOUND
+-#define VER_FILEDESCRIPTION_STR     "Microsoft Virtual Simple Audio Sample Driver"
+-#define VER_INTERNALNAME_STR        "SimpleAudioSample.sys"
+-#define VER_ORIGINALFILENAME_STR    "SimpleAudioSample.sys"
++#define VER_FILEDESCRIPTION_STR     "MPK Deck Virtual Audio Driver"
++#define VER_INTERNALNAME_STR        "MPKDeckVoice.sys"
++#define VER_ORIGINALFILENAME_STR    "MPKDeckVoice.sys"
+ 
+ #define VER_LEGALCOPYRIGHT_YEARS    "2013"
+ #define VER_LEGALCOPYRIGHT_STR	    "Copyright (C) Microsoft Corp." VER_LEGALCOPYRIGHT_YEARS
+diff --git a/audio/simpleaudiosample/Source/Main/common.cpp b/audio/simpleaudiosample/Source/Main/common.cpp
+index 7c19130..b85981e 100644
+--- a/audio/simpleaudiosample/Source/Main/common.cpp
++++ b/audio/simpleaudiosample/Source/Main/common.cpp
+@@ -16,15 +16,8 @@ Abstract:
+ #include <initguid.h>
+ #include "definitions.h"
+ #include "hw.h"
+-#include "savedata.h"
+ #include "endpoints.h"
+ 
+-//-----------------------------------------------------------------------------
+-// CSaveData statics
+-//-----------------------------------------------------------------------------
+-
+-PSAVEWORKER_PARAM       CSaveData::m_pWorkItems = NULL;
+-PDEVICE_OBJECT          CSaveData::m_pDeviceObject = NULL;
+ //=============================================================================
+ // Classes
+ //=============================================================================
+@@ -38,6 +31,7 @@ class CAdapterCommon :
+     public CUnknown    
+ {
+     private:
++        VoiceBridge             m_voiceBridge;
+         PSERVICEGROUP           m_pServiceGroupWave;
+         PDEVICE_OBJECT          m_pDeviceObject;
+         PDEVICE_OBJECT          m_pPhysicalDeviceObject;
+@@ -65,6 +59,8 @@ class CAdapterCommon :
+         //=====================================================================
+         // IAdapterCommon methods      
+ 
++        STDMETHODIMP_(VoiceBridge*) GetVoiceBridge() { return &m_voiceBridge; }
++
+         STDMETHODIMP_(NTSTATUS) Init
+         (   
+             _In_  PDEVICE_OBJECT  DeviceObject
+@@ -377,7 +373,7 @@ Return Value:
+ 
+     //
+     // This sample supports only one instance of this object.
+-    // (b/c of CSaveData's static members and Bluetooth HFP logic). 
++    // (the sample exposes one adapter instance).
+     //
+     if (InterlockedCompareExchange(&CAdapterCommon::m_AdapterInstances, 1, 0) != 0)
+     {
+@@ -437,7 +433,6 @@ Return Value:
+         m_pHW = NULL;
+     }
+     
+-    CSaveData::DestroyWorkItems();
+     SAFE_RELEASE(m_pPortClsEtwHelper);
+     SAFE_RELEASE(m_pServiceGroupWave);
+  
+@@ -556,6 +551,7 @@ Return Value:
+ {
+     PAGED_CODE();
+     DPF_ENTER(("[CAdapterCommon::Init]"));
++    m_voiceBridge.Initialize();
+ 
+     ASSERT(DeviceObject);
+ 
+@@ -609,12 +605,6 @@ Return Value:
+     
+     m_pHW->MixerReset();
+ 
+-    //
+-    // Initialize SaveData class.
+-    //
+-    CSaveData::SetDeviceObject(DeviceObject);   //device object is needed by CSaveData
+-    ntStatus = CSaveData::InitializeWorkItems(DeviceObject);
+-    IF_FAILED_JUMP(ntStatus, Done);
+ Done:
+ 
+     return ntStatus;
+diff --git a/audio/simpleaudiosample/Source/Main/minwavertstream.cpp b/audio/simpleaudiosample/Source/Main/minwavertstream.cpp
+index c189c93..8363cba 100644
+--- a/audio/simpleaudiosample/Source/Main/minwavertstream.cpp
++++ b/audio/simpleaudiosample/Source/Main/minwavertstream.cpp
+@@ -38,6 +38,8 @@ Return Value:
+     
+         if (m_bUnregisterStream)
+         {
++            m_pMiniport->GetAdapterCommObj()->GetVoiceBridge()->SetRunning(
++                this, m_bCapture != FALSE, false, false);
+             m_pMiniport->StreamClosed(m_ulPin, this);
+             m_bUnregisterStream = FALSE;
+         }
+@@ -103,57 +105,6 @@ Return Value:
+ //=============================================================================
+ #pragma code_seg("PAGE")
+ 
+-NTSTATUS CMiniportWaveRTStream::ReadRegistrySettings()
+-{
+-    PAGED_CODE();
+-
+-    NTSTATUS                    ntStatus;
+-    PDRIVER_OBJECT              DriverObject;
+-    HANDLE                      DriverKey;
+-    RTL_QUERY_REGISTRY_TABLE    paramTable[] = {
+-        // QueryRoutine     Flags                                               Name                            EntryContext                            DefaultType                                                     DefaultData                                 DefaultLength
+-        { NULL,   RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK, L"HostCaptureToneFrequency",        &m_ulHostCaptureToneFrequency,          (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_DWORD,  &m_ulHostCaptureToneFrequency,              sizeof(DWORD) },
+-        { NULL,   RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK, L"HostCaptureToneAmplitude",        &m_dwHostCaptureToneAmplitude,          (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_DWORD,  &m_dwHostCaptureToneAmplitude,              sizeof(DWORD) },
+-        { NULL,   RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK, L"HostCaptureToneDCOffset",         &m_dwHostCaptureToneDCOffset,           (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_DWORD,  &m_dwHostCaptureToneDCOffset,               sizeof(DWORD) },
+-        { NULL,   RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK, L"HostCaptureToneInitialPhase",     &m_dwHostCaptureToneInitialPhase,       (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_DWORD,  &m_dwHostCaptureToneInitialPhase,           sizeof(DWORD) },
+-        { NULL,   0,                                                        NULL,                               NULL,                                   0,                                                              NULL,                                       0 }
+-    };
+-
+-    DriverObject = WdfDriverWdmGetDriverObject(WdfGetDriver());
+-    DriverKey = NULL;
+-    ntStatus = IoOpenDriverRegistryKey(DriverObject, 
+-                                 DriverRegKeyParameters,
+-                                 KEY_READ,
+-                                 0,
+-                                 &DriverKey);
+-
+-    if (!NT_SUCCESS(ntStatus))
+-    {
+-        return ntStatus;
+-    }
+-
+-    ntStatus = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE,
+-                                  (PCWSTR) DriverKey,
+-                                  &paramTable[0],
+-                                  NULL,
+-                                  NULL);
+-
+-    if (!NT_SUCCESS(ntStatus)) 
+-    {
+-        DPF(D_VERBOSE, ("RtlQueryRegistryValues failed, using default values, 0x%x", ntStatus));
+-        //
+-        // Don't return error because we will operate with default values.
+-        //
+-    }
+-
+-    if (DriverKey)
+-    {
+-        ZwClose(DriverKey);
+-    }
+-
+-    return ntStatus;
+-}
+-
+ NTSTATUS
+ CMiniportWaveRTStream::Init
+ ( 
+@@ -228,10 +179,7 @@ Return Value:
+     m_bEoSReceived = FALSE;
+     m_bLastBufferRendered = FALSE;
+ 
+-    m_ulHostCaptureToneFrequency = IsEqualGUID(SignalProcessingMode, AUDIO_SIGNALPROCESSINGMODE_RAW) ? 1000 : 2000;
+-    m_dwHostCaptureToneAmplitude = 50;
+-    m_dwHostCaptureToneDCOffset = 0;
+-    m_dwHostCaptureToneInitialPhase = 0;
++    m_voiceProtected = 0;
+ 
+     m_pPortStream = PortStream_;
+     InitializeListHead(&m_NotificationList);
+@@ -301,78 +249,6 @@ Return Value:
+         return STATUS_INSUFFICIENT_RESOURCES;
+     }
+ 
+-    if (m_bCapture)
+-    {
+-        ReadRegistrySettings();
+-        DWORD toneFrequency = 0;
+-        DWORD toneAmplitude = 0;
+-        DWORD toneDCOffset = 0;
+-        DWORD toneInitialPhase = 0;
+-
+-        double toneAmplitudeDouble = 0;
+-        double toneDCOffsetDouble = 0;
+-        double toneInitialPhaseDouble = 0;
+-
+-        toneFrequency = m_ulHostCaptureToneFrequency;
+-        toneAmplitude = m_dwHostCaptureToneAmplitude;
+-        toneDCOffset = m_dwHostCaptureToneDCOffset;
+-        toneInitialPhase = m_dwHostCaptureToneInitialPhase;
+-
+-        if (labs(toneAmplitude) > 100)
+-        {
+-            toneAmplitude = toneAmplitude > 0 ? 100 : -100;
+-        }
+-
+-        if (labs(toneDCOffset) > 100)
+-        {
+-            toneDCOffset = toneDCOffset > 0 ? 100 : -100;
+-        }
+-
+-        DWORD abssum = labs(toneAmplitude) + labs(toneDCOffset);
+-
+-        if (abssum > 100)
+-        {
+-            toneAmplitudeDouble = ((double)toneAmplitude) / abssum;
+-            toneDCOffsetDouble = ((double)toneDCOffset) / abssum;
+-        }
+-        else
+-        {
+-            toneAmplitudeDouble = ((double)toneAmplitude) / 100.0;
+-            toneDCOffsetDouble = ((double)toneDCOffset) / 100.0;
+-        }
+-
+-        if (labs(toneInitialPhase) > 31416)
+-        {
+-            toneInitialPhase = toneInitialPhase > 0 ? 31416 : -31416;
+-        }
+-
+-        toneInitialPhaseDouble = (double)toneInitialPhase / 10000;
+-
+-        ntStatus = m_ToneGenerator.Init(toneFrequency, toneAmplitudeDouble, toneDCOffsetDouble, toneInitialPhaseDouble, m_pWfExt);
+-
+-        if (!NT_SUCCESS(ntStatus))
+-        {
+-            return ntStatus;
+-        }
+-    }
+-    else if (!g_DoNotCreateDataFiles)
+-    {
+-        //
+-        // Create an output file for the render data.
+-        //
+-        DPF(D_TERSE, ("SaveData %p", &m_SaveData));
+-        ntStatus = m_SaveData.SetDataFormat(DataFormat_);
+-        if (NT_SUCCESS(ntStatus))
+-        {
+-            ntStatus = m_SaveData.Initialize();
+-        }
+-    
+-        if (!NT_SUCCESS(ntStatus))
+-        {
+-            return ntStatus;
+-        }
+-    }
+-
+     //
+     // Register this stream.
+     //
+@@ -483,19 +359,6 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
+ 
+     RequestedSize_ -= RequestedSize_ % (m_pWfExt->Format.nBlockAlign);
+     
+-    if (!m_bCapture && (!g_DoNotCreateDataFiles))
+-    {
+-        NTSTATUS ntStatus;
+-        
+-        // Simple Audio Sample uses following buffer to hold data before writing to a file.
+-        // Allocating larger buffer will reduce File I/O operations.
+-        ntStatus = m_SaveData.SetMaxWriteSize(RequestedSize_ * 4);
+-        if (!NT_SUCCESS(ntStatus))
+-        {
+-            return ntStatus;
+-        }
+-    }
+-
+     PHYSICAL_ADDRESS highAddress;
+     highAddress.HighPart = 0;
+     highAddress.LowPart = MAXULONG;
+@@ -1198,11 +1061,6 @@ NTSTATUS CMiniportWaveRTStream::SetState
+ 
+             KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
+ 
+-            // Wait until all work items are completed.
+-            if (!m_bCapture && !g_DoNotCreateDataFiles)
+-            {
+-                m_SaveData.WaitAllWorkItems();
+-            }
+             break;
+ 
+         case KSSTATE_ACQUIRE:
+@@ -1272,6 +1130,9 @@ NTSTATUS CMiniportWaveRTStream::SetState
+     }
+ 
+     m_KsState = State_;
++    m_pMiniport->GetAdapterCommObj()->GetVoiceBridge()->SetRunning(
++        this, m_bCapture != FALSE, State_ == KSSTATE_RUN,
++        InterlockedCompareExchange(&m_voiceProtected, 0, 0) != 0);
+ 
+     return ntStatus;
+ }
+@@ -1287,10 +1148,6 @@ NTSTATUS CMiniportWaveRTStream::SetFormat
+ 
+     PAGED_CODE();
+ 
+-    //if (!m_fCapture && !g_DoNotCreateDataFiles)
+-    //{
+-    //    ntStatus = m_SaveData.SetDataFormat(Format);
+-    //}
+ 
+     return STATUS_NOT_SUPPORTED;
+ }
+@@ -1397,7 +1254,7 @@ VOID CMiniportWaveRTStream::WriteBytes
+ 
+ Routine Description:
+ 
+-This function writes the audio buffer using a sine wave generator
++This function fills the capture DMA buffer from the adapter voice link.
+ 
+ Arguments:
+ 
+@@ -1405,7 +1262,11 @@ ByteDisplacement - # of bytes to process.
+ 
+ --*/
+ {
+-    ULONG bufferOffset = m_ullLinearPosition % m_ulDmaBufferSize;
++    if (m_pDmaBuffer == nullptr || m_ulDmaBufferSize == 0) return;
++    // If a delayed timer crossed more than one ring, only the latest ring is valid.
++    ULONG count = min(ByteDisplacement, m_ulDmaBufferSize);
++    ULONG bufferOffset = static_cast<ULONG>((m_ullLinearPosition + ByteDisplacement - count) % m_ulDmaBufferSize);
++    ByteDisplacement = count;
+ 
+     // Normally this will loop no more than once for a single wrap, but if
+     // many bytes have been displaced then this may loops many times.
+@@ -1413,7 +1274,7 @@ ByteDisplacement - # of bytes to process.
+     {
+         ULONG runWrite = min(ByteDisplacement, m_ulDmaBufferSize - bufferOffset);
+         
+-        m_ToneGenerator.GenerateSine(m_pDmaBuffer + bufferOffset, runWrite);
++        m_pMiniport->GetAdapterCommObj()->GetVoiceBridge()->Pull(this, m_pDmaBuffer + bufferOffset, runWrite);
+            	
+         bufferOffset = (bufferOffset + runWrite) % m_ulDmaBufferSize;
+         ByteDisplacement -= runWrite;
+@@ -1430,7 +1291,7 @@ VOID CMiniportWaveRTStream::ReadBytes
+ 
+ Routine Description:
+ 
+-This function reads the audio buffer and saves the data in a file.
++This function forwards the render DMA buffer into the adapter voice link.
+ 
+ Arguments:
+ 
+@@ -1438,14 +1299,18 @@ ByteDisplacement - # of bytes to process.
+ 
+ --*/
+ {
+-    ULONG bufferOffset = m_ullLinearPosition % m_ulDmaBufferSize;
++    if (m_pDmaBuffer == nullptr || m_ulDmaBufferSize == 0) return;
++    // If a delayed timer crossed more than one ring, only the latest ring is valid.
++    ULONG count = min(ByteDisplacement, m_ulDmaBufferSize);
++    ULONG bufferOffset = static_cast<ULONG>((m_ullLinearPosition + ByteDisplacement - count) % m_ulDmaBufferSize);
++    ByteDisplacement = count;
+ 
+     // Normally this will loop no more than once for a single wrap, but if
+     // many bytes have been displaced then this may loops many times.
+     while (ByteDisplacement > 0)
+     {
+         ULONG runWrite = min(ByteDisplacement, m_ulDmaBufferSize - bufferOffset);
+-        m_SaveData.WriteData(m_pDmaBuffer + bufferOffset, runWrite);
++        m_pMiniport->GetAdapterCommObj()->GetVoiceBridge()->Push(this, m_pDmaBuffer + bufferOffset, runWrite);
+         bufferOffset = (bufferOffset + runWrite) % m_ulDmaBufferSize;
+         ByteDisplacement -= runWrite;
+     }
+@@ -1500,10 +1365,11 @@ Return Value:
+     }
+ 
+     //
+-    // Simple Audio Sample writes each stream seperately to disk. If the rights for this
+-    // stream indicates that the stream is CopyProtected, stop writing to disk.
++    // Block protected audio and discard pending frames before returning.
+     //
+-    m_SaveData.Disable(drmRights->CopyProtect);
++    const bool isProtected = drmRights->CopyProtect || drmRights->DigitalOutputDisable;
++    InterlockedExchange(&m_voiceProtected, isProtected ? 1 : 0);
++    m_pMiniport->GetAdapterCommObj()->GetVoiceBridge()->Protect(this, isProtected);
+ 
+     //
+     // From MSDN:
+diff --git a/audio/simpleaudiosample/Source/Main/minwavertstream.h b/audio/simpleaudiosample/Source/Main/minwavertstream.h
+index 0124cab..7605bb4 100644
+--- a/audio/simpleaudiosample/Source/Main/minwavertstream.h
++++ b/audio/simpleaudiosample/Source/Main/minwavertstream.h
+@@ -14,9 +14,6 @@ Abstract:
+ #ifndef _SIMPLEAUDIOSAMPLE_MINWAVERTSTREAM_H_
+ #define _SIMPLEAUDIOSAMPLE_MINWAVERTSTREAM_H_
+ 
+-#include "savedata.h"
+-#include "ToneGenerator.h"
+-
+ //
+ // Structure to store notifications events in a protected list
+ //
+@@ -111,22 +108,14 @@ protected:
+     PLONG                       m_plPeakMeter;
+     PWAVEFORMATEXTENSIBLE       m_pWfExt;
+     ULONG                       m_ulContentId;
+-    CSaveData                   m_SaveData;
+-    ToneGenerator               m_ToneGenerator;
++
++
+     GUID                        m_SignalProcessingMode;
+     BOOLEAN                     m_bEoSReceived;
+     BOOLEAN                     m_bLastBufferRendered;
+     KSPIN_LOCK                  m_PositionSpinLock;
+     // Member variable as config params for tone generator
+-    ULONG                       m_ulHostCaptureToneFrequency;
+-    // If abs(m_dwHostCaptureToneAmplitude) + abs(m_dwHostCaptureToneDCValue) > 100
+-    // m_dwHostCaptureToneDCValue will be compensated to make the sum equal to 100
+-    DWORD                       m_dwHostCaptureToneAmplitude;   // must be between -100 to 100
+-    DWORD                       m_dwLoopbackCaptureToneAmplitude; // must be between -100 to 100
+-    DWORD                       m_dwHostCaptureToneDCOffset;   // must be between -100 to 100
+-    DWORD                       m_dwLoopbackCaptureToneDCOffset; // must be between -100 to 100
+-    DWORD                       m_dwHostCaptureToneInitialPhase;   // must be between -31416 to 31416
+-    DWORD                       m_dwLoopbackCaptureToneInitialPhase; // must be between -31416 to 31416
++    volatile LONG               m_voiceProtected;
+     // Member variable as config params for tone generator
+ 
+ public:
+@@ -188,8 +177,7 @@ private:
+         _Out_opt_  LARGE_INTEGER *  _pliQPCTime
+     );
+ 
+-    NTSTATUS ReadRegistrySettings();
+-    
++
+ };
+ typedef CMiniportWaveRTStream *PCMiniportWaveRTStream;
+ #endif // _SIMPLEAUDIOSAMPLE_MINWAVERTSTREAM_H_

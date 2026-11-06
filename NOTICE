@@ -1,0 +1,6 @@
+Required Notice: Copyright (c) 2026 Diego (diegoblo)
+
+This notice applies to the original MPK Deck code. Third-party components retain
+their own copyright notices and license terms. The derivative Microsoft driver
+patch in driver/sysvad-voice.patch is covered by driver/LICENSE-MS-PL.txt.
+See src-tauri/resources/third-party-notices.txt for dependency notices.
