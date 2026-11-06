@@ -64,7 +64,8 @@ function Deck() {
   </main>;
 
   const config = draft ?? view.config;
-  const profile = config.profiles.find(profile => profile.id === selected) ?? config.profiles[0];
+  const profile = config.profiles.find(profile => profile.id === selected)
+    ?? config.profiles.find(profile => profile.id === view.active_profile) ?? config.profiles[0];
   const active = view.config.profiles.find(profile => profile.id === view.active_profile);
   const edit: Edit = update => { if (!locked.current) setDraft(draft => update(draft ?? view.config)); };
   const update = (value: typeof profile) => edit(config => ({ ...config, profiles: config.profiles.map(profile => profile.id === value.id ? value : profile) }));
@@ -105,7 +106,7 @@ function Deck() {
         {page === "board" && <Board {...shared} pending={!!draft} connect={() => setPage("connections")} />}
         {page === "connections" && <Connections {...shared} />}
         {page === "mix" && <Mixer {...shared} />}
-        {page === "midi" && <Midi {...profileProps} />}
+        {page === "midi" && <Midi key={profile.id} {...profileProps} />}
         {page === "macros" && <Macros {...profileProps} />}
         {page === "profiles" && <Profiles {...profileProps} pending={!!draft} />}
       </div>

@@ -94,6 +94,31 @@ pub struct Binding {
     pub input: Input,
     pub mode: Mode,
     pub target: Target,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<SurfaceControl>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SurfaceControl {
+    PadA { index: u8 },
+    PadB { index: u8 },
+    Knob { index: u8 },
+    Key { index: u8 },
+    JoystickX,
+    JoystickY,
+    Pedal,
+}
+
+impl SurfaceControl {
+    fn accepts(self, kind: Kind) -> bool {
+        match self {
+            Self::PadA { index } | Self::PadB { index } => (1..=8).contains(&index),
+            Self::Knob { index } => (1..=8).contains(&index) && kind == Kind::Cc,
+            Self::Key { index } => (1..=25).contains(&index) && kind == Kind::Note,
+            Self::JoystickX | Self::JoystickY | Self::Pedal => kind == Kind::Cc,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -322,6 +347,7 @@ impl Config {
                 }
             }
             let mut inputs = HashSet::new();
+            let mut surface = HashSet::new();
             for binding in &profile.bindings {
                 if binding.input.channel > 15
                     || binding.input.number > 127
@@ -329,6 +355,13 @@ impl Config {
                 {
                     return Err(invalid(
                         "Hay controles MIDI inválidos o asignados dos veces en el perfil.",
+                    ));
+                }
+                if let Some(control) = binding.surface
+                    && (!control.accepts(binding.input.kind) || !surface.insert(control))
+                {
+                    return Err(invalid(
+                        "Hay posiciones del mapa visual inválidas o asignadas dos veces.",
                     ));
                 }
                 match &binding.target {
@@ -485,6 +518,7 @@ mod tests {
                 number: 60,
             },
             mode: Mode::Continuous,
+            surface: None,
             target: Target::Action {
                 action: Action::Stop,
             },
@@ -507,6 +541,7 @@ mod tests {
                 number: 70,
             },
             mode: Mode::Continuous,
+            surface: None,
             target: Target::Action {
                 action: Action::MasterVolume { min: 0.0, max: 0.7 },
             },
@@ -524,5 +559,30 @@ mod tests {
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn visual_positions_are_optional_unique_and_match_the_midi_kind() {
+        let mut config = Config::default();
+        let mut binding: Binding = serde_json::from_str(
+            r#"{"input":{"kind":"cc","channel":0,"number":70},"mode":"press","target":{"kind":"action","action":{"kind":"stop"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(binding.surface, None);
+        binding.surface = Some(SurfaceControl::Knob { index: 1 });
+        config.profiles[0].bindings.push(binding.clone());
+        let loaded: Config =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        assert_eq!(loaded, config);
+        assert!(loaded.validate().is_ok());
+
+        binding.input.number = 71;
+        config.profiles[0].bindings.push(binding);
+        assert!(config.validate().is_err());
+        let other = &mut config.profiles[0].bindings[1];
+        other.surface = Some(SurfaceControl::Knob { index: 9 });
+        assert!(config.validate().is_err());
+        config.profiles[0].bindings[1].surface = Some(SurfaceControl::Key { index: 2 });
+        assert!(config.validate().is_err());
     }
 }
