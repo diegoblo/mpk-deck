@@ -9,7 +9,10 @@ export type Action =
   | { kind: "mute"; app: string }
   | { kind: "profile"; profile: string };
 export type Target = { kind: "action"; action: Action } | { kind: "macro"; id: string };
-export type Binding = { input: Input; mode: Mode; target: Target };
+export type SurfaceControl =
+  | { kind: "pad_a" | "pad_b" | "knob" | "key"; index: number }
+  | { kind: "joystick_x" | "joystick_y" | "pedal" };
+export type Binding = { input: Input; mode: Mode; target: Target; surface?: SurfaceControl };
 export type Step = { delay_ms: number; action: Action };
 export type Macro = { id: string; name: string; enabled: boolean; foreground: string | null; steps: Step[] };
 export type Rule = { app: string; priority: number; requires_midi: boolean };

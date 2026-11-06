@@ -1,12 +1,12 @@
 # MPK Deck
 
-MPK Deck es una aplicación para Windows x64 que usa el Akai MPK Mini MK3 para disparar clips, ajustar volúmenes por aplicación y ejecutar macros asociadas a perfiles. La versión 0.2.0 añade la mezcla de voz y clips y el controlador virtual de desarrollo para una futura distribución firmada.
+MPK Deck es una aplicación para Windows x64 que usa el Akai MPK Mini MK3 para disparar clips, ajustar volúmenes y ejecutar macros asociadas a perfiles. La versión 0.3.0 añade un mapa interactivo del controlador para configurar las asignaciones MIDI.
 
 ## Primer uso
 
 1. Abre **Conexiones**, selecciona el puerto de entrada del MPK y una salida local de preescucha. Pulsa **Guardar cambios**.
 2. En **Soundboard**, importa un WAV o MP3. Se admiten archivos mono o estéreo, de 8 a 96 kHz, hasta 30 segundos y 24 MiB. Pulsa **Probar** para usar la salida local.
-3. En **Asignaciones MIDI**, pulsa **Aprender desde el MPK** y usa un pad, una tecla o un mando. Añade el control aprendido al perfil, elige una acción y guarda. Para comprobar el puerto o los mensajes, activa **Mostrar eventos**.
+3. En **Asignaciones MIDI**, elige un control del dibujo del MPK. En el panel que se abre junto a él, pulsa **Aprender** y usa el control físico. Configura la acción, pulsa **Aplicar al perfil** y después **Guardar cambios**. Para los pads, selecciona el mismo banco en el MPK y en el dibujo. Las asignaciones anteriores siguen disponibles en **Asignación avanzada** y se pueden vincular al mapa aprendiendo el mismo mensaje. Para comprobar el puerto o los mensajes, activa **Mostrar eventos**.
 4. Para volumen continuo, elige un control CC, modo **Continuo (CC)**, la acción **Ajustar volumen** y sus límites. La aplicación aparece en el mezclador cuando Windows tiene alguna sesión de audio identificable.
    Para controlar la salida predeterminada de Windows, elige **Ajustar volumen general** y configura sus límites. Si cambias la salida predeterminada, el siguiente movimiento del mando controla la nueva salida.
 5. En **Macros**, configura hasta 16 pasos y un máximo acumulado de 10 segundos de espera. Opcionalmente exige una aplicación en primer plano. Una macro termina al fijar un perfil y se cancela al fallar un paso, cambiar de perfil, pausar macros o pulsar **Detener**. El contexto se comprueba al activar la macro y antes de cada paso.
